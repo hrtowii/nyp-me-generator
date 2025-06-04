@@ -5,8 +5,8 @@ import requests
 import base64
 import urllib.parse
 from models import gemini_generate, openai_generate, openrouter_generate, vlm_generate
-from pybooru import Danbooru
-danbooru = Danbooru('danbooru')
+# from pybooru import Danbooru
+from gelbooru import search_anime_character
 
 # https://pypi.org/project/aiodanbooru/
 # pip install aiodanbooru
@@ -60,8 +60,9 @@ def search_agent(prompt):
     3. Key visual traits (hair color, eye color, clothing, etc.)
 
     Format your response as a simple search query that would work well for finding images of this character on anime character databases. Focus on the most distinctive features.
+    Focus on using booru image board tags.
 
-    Example: "Megumin red eyes brown hair witch hat explosion magic"
+    Example: "Megumin red eyes choker blush brown_hair thighhighs 1girl dress"
 
     Just return the search terms, nothing else."""
     search_query = openrouter_generate(prompt)
@@ -69,21 +70,29 @@ def search_agent(prompt):
     # https://openrouter.ai/docs/features/tool-calling
     # 3. use https://www.animecharactersdatabase.com or danbooru
     try:
-        tag_list = '_'.join(search_query.strip().split()[:2]) if search_query else "1girl"
-        posts = danbooru.post_list(tags="1girl", limit=1, page=1, random=True)
-        print(posts[0])
-        if posts[0].get('file_url'):
-            file_url = posts[0]['file_url']
-        elif posts[0].get('large_file_url'):
-            file_url = posts[0]['large_file_url']
-        else:
-            # Fallback to sample if no high-res available
-            file_url = posts[0]['media_asset']['variants'][-1]['url']
+        # tag_list = '_'.join(search_query.strip().split()[:2]) if search_query else "1girl"
+        # posts = danbooru.post_list(tags="1girl", limit=1, page=1, random=True)
+        # print(posts[0])
+        # if posts[0].get('file_url'):
+        #     file_url = posts[0]['file_url']
+        # elif posts[0].get('large_file_url'):
+        #     file_url = posts[0]['large_file_url']
+        # else:
+        #     # Fallback to sample if no high-res available
+        #     file_url = posts[0]['media_asset']['variants'][-1]['url']
 
         # Download the image and convert to base64
-        response = requests.get(file_url)
-        response.raise_for_status()
-        image_b64 = base64.b64encode(response.content).decode('utf-8')
+        file_url = search_anime_character(search_query)
+        if not file_url:
+            file_url = search_anime_character("1girl")
+            response = requests.get(file_url)
+            response.raise_for_status()
+            image_b64 = base64.b64encode(response.content).decode('utf-8')
+
+        if file_url:
+            response = requests.get(file_url)
+            response.raise_for_status()
+            image_b64 = base64.b64encode(response.content).decode('utf-8')
         return image_b64
     except Exception as e:
        print(f"Search failed: {e}")
