@@ -23,7 +23,7 @@ def vlm_prompt(webcam_image, downloaded_image):
     analysis_prompt = """Analyze these two images carefully:
 1. The first image shows a real person
 2. The second image shows an anime character
-
+You are not expected to generate an image, but to create a prompt instead.
 Create a detailed transformation prompt for converting the real person into anime style. Be specific about:
 
 PHYSICAL FEATURES TO PRESERVE:
@@ -42,7 +42,7 @@ ANIME STYLE TO ADOPT:
 
 Format as a clear, actionable prompt for image generation. Start with "Transform this person into anime style:" and include specific technical terms like "cel-shaded", "anime proportions", "vibrant colors", etc.
 
-Keep it under 150 words and make it practical for AI image generation."""
+Make it practical for AI image generation."""
 
     analysis = vlm_generate(webcam_b64, anime_b64, analysis_prompt)
 
@@ -66,7 +66,7 @@ def search_agent(prompt):
     prompt = f"""Parse this anime character description and extract search terms for booru image boards: "{prompt}"
 
     IMPORTANT: Use only valid booru tags in this format:
-    - Character names: lowercase, underscores for spaces (e.g., "megumin", "gojo_satoru")
+    - Character names: lowercase, underscores for spaces (e.g., "megumin", "gojo", "gojo_satoru")
     - Series names: with underscores (e.g., "konosuba", "jujutsu_kaisen")
     - Physical traits: standardized tags (e.g., "red_eyes", "brown_hair", "long_hair")
     - Always include "1girl" or "1boy" as appropriate
@@ -98,7 +98,7 @@ def search_agent(prompt):
         file_url = search_anime_character(search_query)
         if not file_url:
             file_url = search_anime_character("1girl")
-        
+
         if file_url:
             response = requests.get(file_url)
             response.raise_for_status()
@@ -162,15 +162,15 @@ if user_img and char_prompt:
         final_prompt = vlm_prompt(user_img, anime_image)
         st.subheader("Generated Transformation Prompt")
         st.write(final_prompt)
-        
+
         # Generate final image
         st.write("Creating artwork...")
         generated_bytes = generate_image(user_img.getvalue(), base64.b64decode(anime_b64), final_prompt)
-        
+
         if generated_bytes is None:
             st.error("Failed to generate image. Please try again with a different character or photo.")
             st.stop()
-            
+
         final_image = Image.open(io.BytesIO(generated_bytes))
 
     # Display result

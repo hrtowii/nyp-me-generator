@@ -7,7 +7,7 @@ class GelbooruSearcher:
         self.base_url = "https://gelbooru.com/index.php"
         self.headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
 
-    def search_images(self, tags, limit=20):
+    def search_images(self, tags, limit=100):
         """Search for images with given tags"""
         if isinstance(tags, str):
             tags = [tags]
@@ -31,7 +31,11 @@ class GelbooruSearcher:
 
             # Handle gelbooru JSON format
             if isinstance(data, dict) and 'post' in data:
-                return data['post']  # Properly extracted posts
+                posts = data['post']
+                # Filter to only return general-rated posts
+                general_posts = [post for post in posts if post.get('rating') == 'general']
+                print(f"Filtered {len(general_posts)} general-rated posts from {len(posts)} total posts")
+                return general_posts
             return []  # Fail-safe for unexpected formats
         except Exception as e:
             print(f"Error searching Gelbooru: {e}")
@@ -42,8 +46,8 @@ class GelbooruSearcher:
         if not posts:
             return None
 
-        # Filter valid posts with file_url
-        valid_posts = [post for post in posts if post.get('file_url')]
+        # Filter valid posts with file_url and general rating only
+        valid_posts = [post for post in posts if post.get('file_url') and post.get('rating') == 'general']
         if not valid_posts:
             return None
 
@@ -71,9 +75,11 @@ class GelbooruSearcher:
 
             print(f"Searching with tags: {current_tags}")
             posts = self.search_images(current_tags)
-            print(posts)
-            if posts:
-                url = self.get_best_image_url(posts)
+            # Additional safety check: filter out non-general rated posts
+            general_posts = [post for post in posts if post.get('rating') == 'general']
+            print(f"Found {len(general_posts)} general-rated posts out of {len(posts)} total")
+            if general_posts:
+                url = self.get_best_image_url(general_posts)
                 if url:
                     return url
 
@@ -90,6 +96,16 @@ class GelbooruSearcher:
 
         return None  # No results after all attempts
 
+def validate_rating(posts):
+    """Validate and log ratings of posts for debugging"""
+    ratings = {}
+    for post in posts:
+        rating = post.get('rating', 'unknown')
+        ratings[rating] = ratings.get(rating, 0) + 1
+
+    print(f"Rating breakdown: {ratings}")
+    return [post for post in posts if post.get('rating') == 'general']
+
 def search_anime_character(tags):
     """Main function to search for anime character images"""
     searcher = GelbooruSearcher()
@@ -104,4 +120,6 @@ def search_anime_character(tags):
     # if not any(tag in ['1girl', '1boy'] for tag in tag_list):
     #     tag_list.insert(0, '1girl')
 
+    print(f"Searching for anime character with tags: {tag_list}")
+    print("Note: Only general-rated images will be used")
     return searcher.search_with_fallback(tag_list)

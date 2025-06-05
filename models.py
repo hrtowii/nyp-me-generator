@@ -57,6 +57,7 @@ def gemini_generate(b64_image: str, b64_image_2: str, input: str):
     generate_content_config = types.GenerateContentConfig(
         response_modalities=[
             "IMAGE",
+            "TEXT"
         ],
         response_mime_type="text/plain",
     )
@@ -119,9 +120,8 @@ def openai_generate(b64_image: str, input: str):
 
 def vlm_generate(webcam_image: str, downloaded_image: str, prompt: str):
     completion = openrouter_client.chat.completions.create(
-        extra_body={},
-        # model="opengvlab/internvl3-14b:free",
-        model="qwen/qwen2.5-vl-32b-instruct:free",
+        model="google/gemma-3-27b-it:free",
+        # model="qwen/qwen2.5-vl-32b-instruct:free",
         messages=[
             {
                 "role": "user",
