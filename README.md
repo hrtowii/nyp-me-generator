@@ -1,4 +1,4 @@
-# Possible NYP OH showcase project
+# Possible NYP OH showcase project - nyp-me-generator
 * take an image of a person or get one somehow
 * given an existing image and a prompt of an anime character,
 * search up the character → get an image of them

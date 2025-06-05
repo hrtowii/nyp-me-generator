@@ -3,8 +3,7 @@ import io
 from PIL import Image
 import requests
 import base64
-import urllib.parse
-from models import gemini_generate, openai_generate, openrouter_generate, vlm_generate
+from models import gemini_generate, openrouter_generate, vlm_generate
 # from pybooru import Danbooru
 from gelbooru import search_anime_character
 
@@ -21,29 +20,41 @@ def vlm_prompt(webcam_image, downloaded_image):
     downloaded_image.save(img_buffer, format='PNG')
     anime_b64 = base64.b64encode(img_buffer.getvalue()).decode('utf-8')
 
-    analysis_prompt = """Analyze these two images:
+    analysis_prompt = """Analyze these two images carefully:
 1. The first image shows a real person
 2. The second image shows an anime character
 
-Create a detailed art generation prompt that describes how to transform the real person into the anime character's style. Include:
-- Physical features from the real person (hair color, face shape, age, etc.)
-- Art style elements from the anime character (shading style, color palette, aesthetic)
-- Specific anime art techniques like "cell-shaded", "bold outlines", "vibrant colors"
+Create a detailed transformation prompt for converting the real person into anime style. Be specific about:
 
-Format your response as a single detailed prompt suitable for an AI art generator.
+PHYSICAL FEATURES TO PRESERVE:
+- Age and gender of the person
+- Basic facial structure and proportions
+- Hair length and style
+- Pose and expression
+- Background elements
 
-Example format: "[age] [gender] with [physical features] in [character name]'s [art style], [pose description], anime cell-shaded style, detailed eyes, [series] aesthetic"
-"""
+ANIME STYLE TO ADOPT:
+- Art style from the anime reference (cel-shaded, soft-shaded, etc.)
+- Color palette and vibrancy
+- Eye style and size
+- Line art thickness
+- Shading technique
 
-    analysis = vlm_generate(webcam_b64, anime_b64, f"{analysis_prompt}")
+Format as a clear, actionable prompt for image generation. Start with "Transform this person into anime style:" and include specific technical terms like "cel-shaded", "anime proportions", "vibrant colors", etc.
 
-    # Combine both analyses into a final prompt
-    final_prompt = f"""Transform the real person into anime style based on these analyses:
+Keep it under 150 words and make it practical for AI image generation."""
 
-{analysis}
+    analysis = vlm_generate(webcam_b64, anime_b64, analysis_prompt)
 
+    # Create a more structured final prompt
+    final_prompt = f"""Given these two reference images, {analysis}
 
-Create a fusion that maintains the person's identity while adopting the anime character's art style, including cell-shading, vibrant colors, and anime aesthetic."""
+Technical requirements:
+- Maintain the original person's pose, facial structure, and background
+- Apply anime art style with cell-shading and bold outlines
+- Use vibrant anime color palette
+- Transform facial features to anime proportions while keeping recognizable identity
+- High quality anime artwork style"""
 
     return final_prompt
 
@@ -52,19 +63,21 @@ def search_agent(prompt):
 
     # 1. use ai to parse prompt into proper anime character name.
     # 2. if unable to find name, traits such as hair, eye color, height are also acceptable
-    prompt = f"""Parse this anime character description and extract the most important search terms for finding an image of this character: "{prompt}"
+    prompt = f"""Parse this anime character description and extract search terms for booru image boards: "{prompt}"
 
-    Extract:
-    1. Character name (if mentioned)
-    2. Anime/series name (if mentioned)
-    3. Key visual traits (hair color, eye color, clothing, etc.)
+    IMPORTANT: Use only valid booru tags in this format:
+    - Character names: lowercase, underscores for spaces (e.g., "megumin", "gojo_satoru")
+    - Series names: with underscores (e.g., "konosuba", "jujutsu_kaisen")
+    - Physical traits: standardized tags (e.g., "red_eyes", "brown_hair", "long_hair")
+    - Always include "1girl" or "1boy" as appropriate
+    - Use tags like "official_art" or "anime_screenshot" for better quality
 
-    Format your response as a simple search query that would work well for finding images of this character on anime character databases. Focus on the most distinctive features.
-    Focus on using booru image board tags.
+    Examples:
+    - "megumin konosuba red_eyes brown_hair 1girl official_art"
+    - "gojo_satoru jujutsu_kaisen white_hair blue_eyes 1boy"
+    - "zero_two darling_in_the_franxx pink_hair red_horns 1girl"
 
-    Example: "Megumin red eyes choker blush brown_hair thighhighs 1girl dress"
-
-    Just return the search terms, nothing else."""
+    Return only the search tags separated by spaces, no explanations."""
     search_query = openrouter_generate(prompt)
 
     # https://openrouter.ai/docs/features/tool-calling
@@ -85,25 +98,29 @@ def search_agent(prompt):
         file_url = search_anime_character(search_query)
         if not file_url:
             file_url = search_anime_character("1girl")
-            response = requests.get(file_url)
-            response.raise_for_status()
-            image_b64 = base64.b64encode(response.content).decode('utf-8')
-
+        
         if file_url:
             response = requests.get(file_url)
             response.raise_for_status()
             image_b64 = base64.b64encode(response.content).decode('utf-8')
-        return image_b64
+            return image_b64
+        else:
+            raise Exception("Could not find any anime character image")
     except Exception as e:
        print(f"Search failed: {e}")
-       # Return a simple placeholder image as base64
-       return "meow"
+       # Return None to indicate failure
+       return None
 
-def generate_image(original_img: bytes, prompt: str):
+# def generate_image(original_img: bytes, prompt: str):
+def generate_image(original_img: bytes, anime_img: bytes, prompt: str):
     ### ret image in bytes for st.image() and bytesio
     b64 = base64.b64encode(original_img).decode('utf-8')
-    gemini_bytes = gemini_generate(b64, prompt)
+    b64_2 = base64.b64encode(anime_img).decode('utf-8')
+    gemini_bytes = gemini_generate(b64, b64_2, prompt)
     # openai_bytes = openai_generate(b64, prompt)
+    if gemini_bytes is None:
+        print("Error: gemini_generate returned None")
+        return None
     return gemini_bytes
 
 # Streamlit UI
@@ -127,6 +144,9 @@ if user_img and char_prompt:
 
         st.write("Searching character reference...")
         anime_b64 = search_agent(char_prompt)
+        if anime_b64 is None:
+            st.error("Failed to find anime character reference. Please try a different character name.")
+            st.stop()
         anime_image = Image.open(io.BytesIO(base64.b64decode(anime_b64)))
 
         # Display references
@@ -140,12 +160,18 @@ if user_img and char_prompt:
         # Generate prompt
         st.write("Generating fusion prompt...")
         final_prompt = vlm_prompt(user_img, anime_image)
-        st.subheader("Final prompt")
+        st.subheader("Generated Transformation Prompt")
         st.write(final_prompt)
+        
         # Generate final image
         st.write("Creating artwork...")
-        final_image = generate_image(user_img.getvalue(), final_prompt)
-        final_image = Image.open(io.BytesIO(final_image))
+        generated_bytes = generate_image(user_img.getvalue(), base64.b64decode(anime_b64), final_prompt)
+        
+        if generated_bytes is None:
+            st.error("Failed to generate image. Please try again with a different character or photo.")
+            st.stop()
+            
+        final_image = Image.open(io.BytesIO(generated_bytes))
 
     # Display result
     st.subheader("Your Anime Transformation")

@@ -31,7 +31,7 @@ def save_binary_file(file_name, data):
     print(f"File saved to to: {file_name}")
 
 
-def gemini_generate(b64_image: str, input: str):
+def gemini_generate(b64_image: str, b64_image_2: str, input: str):
     # taken from google ai studio
     model = "gemini-2.0-flash-preview-image-generation"
     contents = [
@@ -44,6 +44,12 @@ def gemini_generate(b64_image: str, input: str):
                         data=base64.b64decode(b64_image)
                     )] if b64_image else []
                 ),
+                *(
+                    [types.Part.from_bytes(
+                        mime_type="image/png",
+                        data=base64.b64decode(b64_image_2)
+                    )] if b64_image_2 else []
+                ),
                 types.Part.from_text(text=input),
             ],
         ),
@@ -51,7 +57,6 @@ def gemini_generate(b64_image: str, input: str):
     generate_content_config = types.GenerateContentConfig(
         response_modalities=[
             "IMAGE",
-            "TEXT",
         ],
         response_mime_type="text/plain",
     )
